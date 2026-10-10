@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uttarkashi relief camp</title>
+<style>
+  :root {
+    --stone: #E5E9E6;
+    --panel: #F8F9F7;
+    --ink: #17262B;
+    --muted: #5A6A6F;
+    --line: #C3CCC7;
+    --river: #1D5C7A;
+    --river-soft: #A9C7D6;
+    --safe: #2F7D58;
+    --caution: #B26A00;
+    --alarm: #B3261E;
+    --font: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--stone); color: var(--ink);
+    font: 15px/1.45 var(--font); font-variant-numeric: tabular-nums;
+  }
+  button, select, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--river); outline-offset: 2px; }
+
+  /* header */
+  header {
+    display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; justify-content: space-between;
+    padding: 18px 28px; background: var(--ink); color: #F1F4F2;
+  }
+  header h1 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: .01em; }
+  header .sub { color: #AFC0C5; font-size: 13px; margin-top: 2px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .controls label { font-size: 13px; color: #AFC0C5; display: flex; align-items: center; gap: 6px; }
+  .controls select, .controls button {
+    background: #24373D; border: 1px solid #3C5760; color: #F1F4F2; padding: 7px 12px; border-radius: 4px; cursor: pointer;
+  }
+  .controls button:hover, .controls select:hover { background: #2D454C; }
+  .controls button[aria-pressed="true"] { background: var(--river); border-color: #5E9DBA; }
+  .pill {
+    padding: 6px 16px; border-radius: 999px; font-weight: 650; font-size: 14px; background: var(--safe); color: #fff;
+  }
+  .pill.watch { background: var(--caution); }
+  .pill.alarm { background: var(--alarm); }
+
+  main { padding: 22px 28px 40px; max-width: 1360px; margin: 0 auto; display: grid; gap: 18px; }
+  .banner { background: var(--alarm); color: #fff; padding: 10px 14px; border-radius: 4px; display: none; }
+  .banner.show { display: block; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; min-width: 0; }
+  .panel h2 { margin: 0 0 12px; font-size: 16px; font-weight: 650; }
+  .panel h2 small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
+  .grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+  .note { color: var(--muted); font-size: 13px; }
+
+  /* hero: reserve runway */
+  .hero { border-left: 8px solid var(--safe); padding: 22px 26px 18px; }
+  .hero.caution { border-left-color: var(--caution); }
+  .hero.alarm { border-left-color: var(--alarm); }
+  .hero-top { display: flex; flex-wrap: wrap; gap: 8px 40px; align-items: baseline; justify-content: space-between; }
+  .hero h2 { font-size: 15px; margin: 0 0 4px; color: var(--muted); font-weight: 600; }
+  .hero .big { font-size: 46px; font-weight: 700; line-height: 1; letter-spacing: -.01em; }
+  .hero .big span { font-size: 20px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+  .hero .verdict { font-size: 15px; max-width: 46ch; }
+  .runway { position: relative; height: 54px; margin: 26px 0 30px; }
+  .runway .track { position: absolute; left: 0; right: 0; top: 14px; height: 26px; background: #DCE2DE; border-radius: 2px; }
+  .runway .bar { position: absolute; left: 0; top: 14px; height: 26px; border-radius: 2px 0 0 2px; }
+  .runway .bar.forecast { background: var(--river-soft); }
+  .runway .bar.worst { background: var(--safe); }
+  .hero.caution .bar.worst { background: var(--caution); }
+  .hero.alarm .bar.worst { background: var(--alarm); }
+  .runway .req { position: absolute; top: 4px; bottom: 0; width: 3px; background: var(--ink); }
+  .runway .req em { position: absolute; top: -2px; left: 8px; font-style: normal; font-size: 12px; font-weight: 650; white-space: nowrap; transform: translateY(-100%); }
+  .runway .tick { position: absolute; top: 44px; font-size: 11px; color: var(--muted); transform: translateX(-50%); white-space: nowrap; }
+  .runway .tick.first { transform: none; } .runway .tick.last { transform: translateX(-100%); }
+  .runway .tick.hide { visibility: hidden; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .swatch { display: inline-block; width: 14px; height: 10px; margin-right: 6px; border-radius: 1px; vertical-align: baseline; }
+  @media (prefers-reduced-motion: no-preference) { .bar { transition: width .5s ease; } }
+
+  /* charts */
+  svg.chart { width: 100%; height: auto; display: block; }
+  svg.chart text { font: 11px var(--font); fill: var(--muted); }
+  svg.chart .grid { stroke: #DDE3DF; stroke-width: 1; }
+
+  /* stat blocks */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat { border-top: 3px solid var(--line); padding-top: 6px; }
+  .stat b { display: block; font-size: 22px; font-weight: 650; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .stat.solar { border-top-color: #D4A017; } .stat.wind { border-top-color: var(--river); }
+  .stat.load { border-top-color: var(--ink); } .stat.net { border-top-color: var(--safe); }
+  .stat.net.neg { border-top-color: var(--caution); }
+  .soc { height: 12px; background: #DCE2DE; border-radius: 2px; margin: 6px 0 4px; position: relative; overflow: hidden; }
+  .soc i { position: absolute; inset: 0 auto 0 0; background: var(--river); }
+  .soc u { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); }
+
+  /* loads */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 6px 6px 0; }
+  td { padding: 7px 6px 7px 0; border-top: 1px dotted var(--line); vertical-align: top; }
+  td.num, th.num { text-align: right; }
+  .reason { display: block; font-size: 12px; color: var(--muted); }
+  .chip { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .chip.on { background: #D5EADF; color: #1C5C3D; }
+  .chip.shed { background: #F4DFB8; color: #7A4700; }
+  .chip.off { background: #DDE2DF; color: #4B5A5F; }
+  tr.group th { padding: 12px 0 4px; color: var(--ink); font-size: 12px; border-top: 1px solid var(--line); }
+  tr.group:first-child th { border-top: 0; padding-top: 0; }
+  .link { white-space: nowrap; background: none; border: 0; color: var(--river); text-decoration: underline; cursor: pointer; padding: 0; }
+
+  /* alerts */
+  .alerts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .alerts li { border-left: 5px solid var(--line); padding: 4px 0 4px 10px; background: #fff; }
+  .alerts li.alarm { border-left-color: var(--alarm); }
+  .alerts li.caution { border-left-color: var(--caution); }
+  .alerts li.info { border-left-color: var(--river); }
+  .alerts time { display: block; font-size: 12px; color: var(--muted); }
+  .alerts.resolved li { opacity: .6; }
+  h3 { margin: 16px 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+
+  /* bridge */
+  .access { font-size: 22px; font-weight: 700; margin-bottom: 12px; }
+  .access.ok { color: var(--safe); } .access.caution { color: var(--caution); } .access.alarm { color: var(--alarm); }
+  .metric { margin-bottom: 12px; }
+  .metric .row { display: flex; justify-content: space-between; font-size: 14px; }
+  .gauge { position: relative; height: 12px; background: #DCE2DE; border-radius: 2px; margin-top: 4px; }
+  .gauge i { position: absolute; inset: 0 auto 0 0; background: var(--safe); border-radius: 2px; }
+  .gauge i.caution { background: var(--caution); } .gauge i.alarm { background: var(--alarm); }
+  .gauge u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); opacity: .55; }
+
+  /* shelter */
+  .units { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; margin: 12px 0; }
+  .unit { aspect-ratio: 1; border: 1px solid #8FA1A8; background: #fff; position: relative; overflow: hidden; border-radius: 2px; }
+  .unit i { position: absolute; inset: auto 0 0 0; background: var(--river); }
+  .inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  input[type=number], select.field { border: 1px solid #98A8AE; background: #fff; padding: 6px 8px; border-radius: 4px; width: 100%; }
+  .btn { background: var(--ink); color: #fff; border: 0; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+  .btn:hover { background: #28414A; }
+
+  /* sizing */
+  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin-bottom: 12px; }
+  .form label { font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
+  .form .wide { grid-column: 1 / -1; }
+  .result { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 4px; }
+  .result .line { display: flex; justify-content: space-between; }
+  .result .verdict-line { font-weight: 650; margin-top: 4px; }
+  .ok { color: var(--safe); } .bad { color: var(--alarm); }
+
+  @media (max-width: 640px) {
+    header, main { padding-left: 14px; padding-right: 14px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .hero .big { font-size: 38px; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Gorge Relief Camp</h1>
+    <div class="sub">Command post &ndash; <span id="clock">loading</span></div>
+  </div>
+  <div class="controls">
+    <label>Weather
+      <select id="scenario" aria-label="Weather scenario"></select>
+    </label>
+    <button id="step" type="button">Advance 30 min</button>
+    <button id="run" type="button" aria-pressed="false">Run demo</button>
+    <button id="reset" type="button">Reset data</button>
+    <span id="overall" class="pill" role="status" aria-live="polite">&hellip;</span>
+  </div>
+</header>
+
+<main>
+  <div id="banner" class="banner" role="alert"></div>
+
+  <!-- the 48 hour promise -->
+  <section class="panel hero" id="hero" aria-labelledby="hero-h">
+    <div class="hero-top">
+      <div>
+        <h2 id="hero-h">Battery-only reserve</h2>
+        <div class="big" id="reserve-big">&ndash;<span>h</span></div>
+      </div>
+      <p class="verdict" id="reserve-verdict"></p>
+    </div>
+    <div class="runway" id="runway" aria-hidden="true"></div>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--safe)"></i>No solar, no wind (the design requirement)</span>
+      <span><i class="swatch" style="background:var(--river-soft)"></i>With the current weather forecast</span>
+    </div>
+    <div id="projection"></div>
+  </section>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="energy-h">
+      <h2 id="energy-h">Power now <small id="weather"></small></h2>
+      <div class="stats" id="stats"></div>
+      <div class="inline" style="justify-content:space-between"><span>Battery</span><b id="soc-text"></b></div>
+      <div class="soc" id="soc"></div>
+      <div class="note" id="soc-note"></div>
+      <h3>Generation and load, last 12 hours (kW)</h3>
+      <div id="history"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="loads-h">
+      <h2 id="loads-h">Loads <small>shed lowest priority first</small></h2>
+      <table>
+        <thead><tr><th>Load</th><th class="num">kW</th><th>Status</th><th></th></tr></thead>
+        <tbody id="loads"></tbody>
+      </table>
+    </section>
+
+    <section class="panel" aria-labelledby="alerts-h">
+      <h2 id="alerts-h">Alerts</h2>
+      <ul class="alerts" id="alerts"></ul>
+      <h3 id="resolved-h">Recently resolved</h3>
+      <ul class="alerts resolved" id="resolved"></ul>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="bridge-h">
+      <h2 id="bridge-h">Bridge <small>45 m span, 15 t limit</small></h2>
+      <div class="access" id="access"></div>
+      <div id="metrics"></div>
+      <p class="note">Warning limits are placeholders. The structural team sets the real ones.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="shelter-h">
+      <h2 id="shelter-h">Shelter</h2>
+      <div><b id="occ-text" style="font-size:22px"></b> <span class="note" id="occ-note"></span></div>
+      <div class="units" id="units" role="img" aria-label="Family units, filled by occupancy"></div>
+      <div class="inline">
+        <label for="occ-input" class="note">People in camp</label>
+        <input id="occ-input" type="number" min="0" style="width:90px" inputmode="numeric">
+        <button class="btn" id="occ-save" type="button">Update count</button>
+      </div>
+      <p class="note" id="medical"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="size-h">
+      <h2 id="size-h">Battery sizing</h2>
+      <div class="form">
+        <label>Backup hours <input id="sz-hours" type="number" value="48" min="1"></label>
+        <label>Usable depth of discharge, % <input id="sz-dod" type="number" value="80" min="1" max="100"></label>
+        <label>System efficiency, % <input id="sz-eff" type="number" value="90" min="1" max="100"></label>
+        <label>Loads to carry
+          <select id="sz-prio" class="field">
+            <option value="1">Critical only</option>
+            <option value="2" selected>Critical and important</option>
+            <option value="3">Everything</option>
+          </select>
+        </label>
+        <div class="wide"><button class="btn" id="sz-go" type="button">Calculate</button></div>
+      </div>
+      <div class="result" id="sz-result" aria-live="polite"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = (x, d = 1) => Number(x).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
+const PRIORITY = { 1: 'Critical', 2: 'Important', 3: 'Non-critical' };
+let running = false, busy = false, firstLoad = true;
+
+async function api(path, opts = {}) {
+  const res = await fetch('/api' + path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { const j = await res.json(); detail = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch (e) {}
+    throw new Error(detail);
+  }
+  return res.json();
+}
+function showError(msg) { const b = $('#banner'); b.textContent = msg || ''; b.classList.toggle('show', !!msg); }
+
+/* ---------- charts ---------- */
+function lineChart({ w = 720, h = 230, xmin, xmax, ymin, ymax, series, hlines = [], vlines = [], xticks, yticks, xfmt, yfmt }) {
+  const m = { l: 40, r: 14, t: 12, b: 26 };
+  const X = (x) => m.l + ((x - xmin) / (xmax - xmin)) * (w - m.l - m.r);
+  const Y = (y) => h - m.b - ((y - ymin) / (ymax - ymin)) * (h - m.t - m.b);
+  let s = `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img">`;
+  yticks.forEach((t) => { s += `<line class="grid" x1="${m.l}" x2="${w - m.r}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${m.l - 6}" y="${Y(t) + 4}" text-anchor="end">${yfmt(t)}</text>`; });
+  xticks.forEach((t) => { s += `<text x="${X(t)}" y="${h - 8}" text-anchor="middle">${xfmt(t)}</text>`; });
+  hlines.forEach((l) => { s += `<line x1="${m.l}" x2="${w - m.r}" y1="${Y(l.y)}" y2="${Y(l.y)}" stroke="${l.color}" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${w - m.r - 4}" y="${Y(l.y) - 5}" text-anchor="end">${esc(l.label)}</text>`; });
+  vlines.forEach((l) => { s += `<line x1="${X(l.x)}" x2="${X(l.x)}" y1="${m.t}" y2="${h - m.b}" stroke="${l.color}" stroke-width="2"/><text x="${X(l.x) + 5}" y="${m.t + 10}">${esc(l.label)}</text>`; });
+  series.forEach((sr) => {
+    const pts = sr.points.map((p) => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ');
+    s += `<polyline fill="none" stroke="${sr.color}" stroke-width="${sr.width || 2.5}" stroke-linejoin="round" points="${pts}"/>`;
+  });
+  return s + '</svg>';
+}
+
+let lastReserve = null;
+function renderProjection(r) {
+  lastReserve = r;
+  const S = r.series;
+  const pw = Math.max(320, Math.min(1100, $('#projection').clientWidth || 1100));
+  const lvlColor = { safe: 'var(--safe)', caution: 'var(--caution)', alarm: 'var(--alarm)' }[r.level];
+  $('#projection').innerHTML = lineChart({
+    w: pw, h: pw < 600 ? 250 : 230, xmin: 0, xmax: r.horizon_hours, ymin: 0, ymax: 100,
+    xticks: [0, 12, 24, 36, 48, 60, 72], yticks: [0, 20, 40, 60, 80, 100],
+    xfmt: (t) => t + ' h', yfmt: (t) => t + '%',
+    hlines: [{ y: r.floor_pct, color: 'var(--muted)', label: 'Battery floor' }],
+    vlines: [{ x: 48, color: 'var(--ink)', label: '48 h' }],
+    series: [
+      { color: 'var(--river-soft)', width: 3.5, points: S.hours.map((h, i) => [h, S.forecast[i]]) },
+      { color: lvlColor, width: 3, points: S.hours.map((h, i) => [h, S.worst[i]]) },
+    ],
+  });
+}
+
+function renderHistory(rows) {
+  if (rows.length < 2) { $('#history').innerHTML = '<p class="note">Not enough readings yet.</p>'; return; }
+  const t0 = new Date(rows[0].ts).getTime(), t1 = new Date(rows[rows.length - 1].ts).getTime();
+  const x = (r) => (new Date(r.ts).getTime() - t0) / 3600000, span = (t1 - t0) / 3600000;
+  const ymax = Math.max(4, Math.ceil(Math.max(...rows.map((r) => Math.max(r.solar_kw + r.wind_kw, r.load_kw))) / 2) * 2);
+  const hhmm = (t) => new Date(t0 + t * 3600000).toTimeString().slice(0, 5);
+  const ticks = [0, span / 2, span];
+  $('#history').innerHTML = lineChart({
+    w: 380, h: 190, xmin: 0, xmax: span, ymin: 0, ymax,
+    xticks: ticks, yticks: [0, ymax / 2, ymax], xfmt: hhmm, yfmt: (t) => num(t, 0),
+    series: [
+      { color: 'var(--river)', points: rows.map((r) => [x(r), r.solar_kw + r.wind_kw]) },
+      { color: 'var(--ink)', points: rows.map((r) => [x(r), r.load_kw]) },
+    ],
+  }) + `<div class="legend"><span><i class="swatch" style="background:var(--river)"></i>Solar and wind</span><span><i class="swatch" style="background:var(--ink)"></i>Load</span></div>`;
+}
+
+/* ---------- panels ---------- */
+function renderHero(r) {
+  const hero = $('#hero');
+  hero.className = 'panel hero ' + (r.level === 'safe' ? '' : r.level);
+  const worst = r.worst_case_hours, h = r.horizon_hours;
+  $('#reserve-big').innerHTML = num(worst) + (r.worst_case_capped ? '+' : '') + '<span>h</span>';
+  const margin = worst - r.required_hours;
+  $('#reserve-verdict').textContent = margin >= 0
+    ? `Meets the 48 h requirement with ${num(margin)} h to spare, even if solar and wind both stop now.`
+    : `Short of the 48 h requirement by ${num(-margin)} h. Switch off more loads or add battery capacity.`;
+  const pct = (v) => Math.min(100, (v / h) * 100) + '%';
+  let html = `<div class="track"></div><div class="bar forecast" style="width:${pct(r.forecast_hours)}"></div><div class="bar worst" style="width:${pct(worst)}"></div>`;
+  html += `<div class="req" style="left:${pct(r.required_hours)}"><em>48 h required</em></div>`;
+  [0, 12, 24, 36, 48, 60, 72].forEach((t) => {
+    const cls = t === 0 ? 'first' : t === 72 ? 'last' : t === 48 ? 'hide' : '';
+    html += `<span class="tick ${cls}" style="left:${pct(t)}">${t} h</span>`;
+  });
+  $('#runway').innerHTML = html;
+  renderProjection(r);
+}
+
+function renderEnergy(e, sim) {
+  $('#weather').textContent = `${sim.scenario}, ${sim.cloud_cover_pct}% cloud, wind ${num(sim.wind_ms)} m/s`;
+  const neg = e.net_kw < 0;
+  $('#stats').innerHTML =
+    `<div class="stat solar"><b>${num(e.solar_kw)}</b><span>Solar kW</span></div>` +
+    `<div class="stat wind"><b>${num(e.wind_kw)}</b><span>Wind kW</span></div>` +
+    `<div class="stat load"><b>${num(e.load_kw)}</b><span>Load kW</span></div>` +
+    `<div class="stat net ${neg ? 'neg' : ''}"><b>${neg ? '' : '+'}${num(e.net_kw)}</b><span>${neg ? 'Draining' : 'Charging'} kW</span></div>`;
+  $('#soc-text').textContent = `${num(e.soc_pct)}%  (${num(e.stored_kwh, 0)} of ${num(e.capacity_kwh, 0)} kWh)`;
+  const floor = (1 - 0.8) * 100;
+  $('#soc').innerHTML = `<i style="width:${e.soc_pct}%"></i><u style="left:${floor}%" title="Depth-of-discharge floor"></u>`;
+  $('#soc-note').textContent = `${num(e.deliverable_kwh, 0)} kWh can still be delivered to loads above the 20% floor.`;
+}
+
+function renderLoads(loads) {
+  let last = 0;
+  $('#loads').innerHTML = loads.map((l) => {
+    let head = '';
+    if (l.priority !== last) { last = l.priority; head = `<tr class="group"><th colspan="4">${PRIORITY[l.priority]}</th></tr>`; }
+    const label = { on: 'Running', shed: 'Shed', off: 'Off' }[l.state];
+    const action = l.enabled ? 'Switch off' : 'Switch on';
+    return head + `<tr><td>${esc(l.name)}<span class="reason">${esc(l.reason)}</span></td>` +
+      `<td class="num">${num(l.power_kw)}</td><td><span class="chip ${l.state}">${label}</span></td>` +
+      `<td><button class="link" data-load="${l.id}" data-enabled="${l.enabled}">${action}</button></td></tr>`;
+  }).join('');
+}
+
+function when(ts) { return new Date(ts).toLocaleString('en-IN', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }); }
+
+function renderAlerts(a) {
+  $('#alerts').innerHTML = a.active.length
+    ? a.active.map((x) => `<li class="${x.severity}">${esc(x.message)}<time>Since ${when(x.raised_at)}</time></li>`).join('')
+    : '<li>No active alerts.</li>';
+  $('#resolved-h').style.display = $('#resolved').style.display = a.recent.length ? '' : 'none';
+  $('#resolved').innerHTML = a.recent.slice(0, 4).map((x) => `<li class="${x.severity}">${esc(x.message)}<time>Cleared ${when(x.resolved_at)}</time></li>`).join('');
+}
+
+function renderBridge(b) {
+  if (!b) { $('#access').textContent = 'No sensor data yet'; $('#metrics').innerHTML = ''; return; }
+  const acc = $('#access'); acc.textContent = b.access; acc.className = 'access ' + b.level;
+  $('#metrics').innerHTML = b.metrics.map((m) => {
+    const max = m.alarm * 1.4, w = Math.min(100, (m.value / max) * 100);
+    return `<div class="metric"><div class="row"><span>${esc(m.label)}</span><b>${num(m.value, 2)} ${esc(m.unit)}</b></div>` +
+      `<div class="gauge"><i class="${m.level === 'ok' ? '' : m.level}" style="width:${w}%"></i>` +
+      `<u style="left:${(m.caution / max) * 100}%" title="Caution ${m.caution}"></u><u style="left:${(m.alarm / max) * 100}%" title="Alarm ${m.alarm}"></u></div></div>`;
+  }).join('');
+}
+
+function renderShelter(s) {
+  $('#occ-text').textContent = `${s.occupied} of ${s.capacity} people`;
+  $('#occ-note').textContent = `${s.free_places} places free in ${s.family_units} family units`;
+  $('#units').innerHTML = s.units.map((n) => `<div class="unit" title="${n} of ${s.people_per_unit}"><i style="height:${(n / s.people_per_unit) * 100}%"></i></div>`).join('');
+  $('#medical').textContent = `Medical and triage tent: ${s.medical_tent}.`;
+  if (firstLoad) $('#occ-input').value = s.occupied;
+  $('#occ-input').max = s.capacity;
+}
+
+function render(s, hist) {
+  const o = $('#overall');
+  o.textContent = { SAFE: 'All clear', WATCH: 'Watch', ALARM: 'Action needed' }[s.overall];
+  o.className = 'pill ' + s.overall.toLowerCase();
+  $('#clock').textContent = new Date(s.sim.time).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }) + ' (simulated)';
+  const sel = $('#scenario');
+  if (!sel.options.length) s.scenarios.forEach((n) => sel.add(new Option(n[0].toUpperCase() + n.slice(1), n)));
+  if (document.activeElement !== sel) sel.value = s.sim.scenario;
+  renderHero(s.reserve); renderEnergy(s.energy, s.sim); renderLoads(s.loads);
+  renderAlerts(s.alerts); renderBridge(s.bridge); renderShelter(s.shelter); renderHistory(hist);
+  firstLoad = false;
+}
+
+async function refresh() {
+  try {
+    const [s, hist] = await Promise.all([api('/status'), api('/energy/history?hours=12')]);
+    render(s, hist); showError('');
+  } catch (e) { showError('Cannot reach the API: ' + e.message + '. Check that the server is running.'); }
+}
+
+window.addEventListener('resize', () => { if (lastReserve) renderProjection(lastReserve); });
+
+/* ---------- actions ---------- */
+async function guarded(fn) {
+  if (busy) return; busy = true;
+  try { await fn(); await refresh(); } catch (e) { showError(e.message); } finally { busy = false; }
+}
+$('#step').onclick = () => guarded(() => api('/sim/step?minutes=30', { method: 'POST' }));
+$('#scenario').onchange = (e) => guarded(() => api('/sim/scenario', { method: 'POST', body: JSON.stringify({ name: e.target.value }) }));
+$('#reset').onclick = () => { if (confirm('Delete all readings and restart the simulation?')) guarded(async () => { await api('/sim/reset', { method: 'POST' }); firstLoad = true; }); };
+$('#run').onclick = (e) => {
+  running = !running; e.target.setAttribute('aria-pressed', running); e.target.textContent = running ? 'Pause demo' : 'Run demo';
+};
+setInterval(() => { if (running) guarded(() => api('/sim/step?minutes=30', { method: 'POST' })); }, 1200);
+setInterval(() => { if (!running) refresh(); }, 5000);
+
+$('#loads').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-load]'); if (!b) return;
+  guarded(() => api('/loads/' + b.dataset.load, { method: 'PUT', body: JSON.stringify({ enabled: b.dataset.enabled !== 'true' }) }));
+});
+$('#occ-save').onclick = () => guarded(() => api('/shelter', { method: 'PUT', body: JSON.stringify({ occupied: parseInt($('#occ-input').value, 10) }) }));
+
+$('#sz-go').onclick = async () => {
+  try {
+    const r = await api('/sizing', { method: 'POST', body: JSON.stringify({
+      hours: +$('#sz-hours').value, depth_of_discharge: +$('#sz-dod').value / 100,
+      efficiency: +$('#sz-eff').value / 100, include_priority: +$('#sz-prio').value }) });
+    $('#sz-result').innerHTML =
+      `<div class="line"><span>Total load</span><b>${num(r.total_kw)} kW</b></div>` +
+      `<div class="line"><span>Energy for ${num(+$('#sz-hours').value, 0)} h</span><b>${num(r.energy_kwh, 0)} kWh</b></div>` +
+      `<div class="line"><span>Battery needed</span><b>${num(r.required_capacity_kwh, 0)} kWh</b></div>` +
+      `<div class="line"><span>Battery installed</span><b>${num(r.installed_capacity_kwh, 0)} kWh</b></div>` +
+      `<div class="verdict-line ${r.meets_requirement ? 'ok' : 'bad'}">${r.meets_requirement
+        ? `Installed battery covers this with ${num(r.margin_kwh, 0)} kWh to spare.`
+        : `Installed battery is ${num(-r.margin_kwh, 0)} kWh short.`}</div>`;
+    showError('');
+  } catch (e) { showError(e.message); }
+};
+
+refresh().then(() => $('#sz-go').click());
+</script>
+</body>
+</html>
